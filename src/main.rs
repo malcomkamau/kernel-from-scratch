@@ -68,54 +68,33 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    use lithos::task::{Task, executor::Executor, keyboard};
-
-    let mut executor = Executor::new();
+    println!("Initializing kernel threads...");
     
-    // Spawn keyboard task
-    executor.spawn(Task::new(keyboard::print_keypresses()));
+    use lithos::task::{kernel_thread::KernelThread, thread_scheduler, test_threads};
     
-    // Spawn a CPU-bound task to demonstrate preemptive scheduling
-    executor.spawn(Task::new(async {
-        let mut counter = 0u64;
-        loop {
-            counter = counter.wrapping_add(1);
-            if counter % 100_000 == 0 {
-                lithos::println!("Task A: {}", counter);
-            }
-            // Yield to allow other tasks to run
-            core::future::poll_fn(|cx| {
-                cx.waker().wake_by_ref();
-                core::task::Poll::<()>::Pending
-            }).await;
-        }
-    }));
+    // Create kernel threads
+    let thread_a = KernelThread::new(test_threads::thread_a);
+    let thread_b = KernelThread::new(test_threads::thread_b);
+    let thread_c = KernelThread::new(test_threads::thread_c);
     
-    // Spawn another CPU-bound task
-    executor.spawn(Task::new(async {
-        let mut counter = 0u64;
-        loop {
-            counter = counter.wrapping_add(1);
-            if counter % 150_000 == 0 {
-                lithos::println!("Task B: {}", counter);
-            }
-            // Yield to allow other tasks to run
-            core::future::poll_fn(|cx| {
-                cx.waker().wake_by_ref();
-                core::task::Poll::<()>::Pending
-            }).await;
-        }
-    }));
+    println!("Thread A ID: {:?}", thread_a.id());
+    println!("Thread B ID: {:?}", thread_b.id());
+    println!("Thread C ID: {:?}", thread_c.id());
     
-    // Initialize global executor
-    lithos::task::executor::init(executor);
+    // Add threads to scheduler
+    thread_scheduler::add_kernel_thread(thread_a);
+    thread_scheduler::add_kernel_thread(thread_b);
+    thread_scheduler::add_kernel_thread(thread_c);
     
-    // Run the executor
-    if let Some(executor) = lithos::task::executor::get_executor() {
-        executor.lock().run();
-    } else {
-        panic!("Failed to initialize executor");
-    }
+    println!("Starting thread scheduler...");
+    println!("Threads will be preemptively switched by timer interrupt.");
+    
+    // Manually trigger first context switch to start the threads
+    thread_scheduler::schedule_next_thread();
+    
+    // Should never reach here as we've switched to kernel threads
+    println!("ERROR: Returned from thread scheduler!");
+    lithos::hlt_loop();
 }
 
 /// This function is called on panic.

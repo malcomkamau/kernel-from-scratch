@@ -1,11 +1,14 @@
 use core::{future::Future, pin::Pin};
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
-use core::sync::atomic::{AtomicU64, Ordering};
 
 pub mod executor;
 pub mod keyboard;
 pub mod scheduler;
+pub mod context;
+pub mod kernel_thread;
+pub mod thread_scheduler;
+pub mod test_threads;
 
 pub struct Task {
     pub id: TaskId,
@@ -27,10 +30,3 @@ impl Task {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaskId(u64);
-
-impl TaskId {
-    fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-        TaskId(NEXT_ID.fetch_add(1, Ordering::Relaxed))
-    }
-}
